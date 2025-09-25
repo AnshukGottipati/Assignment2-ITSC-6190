@@ -4,11 +4,17 @@ import java.net.URI;
 import java.util.UUID;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.*;
+import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
 
 // Adjust these imports to match your actual package names
 import com.example.UniqueTermsMapper;
@@ -17,30 +23,32 @@ import com.example.DocSizePairMapper;
 import com.example.DocSizePairReducer;
 import com.example.ComputeJacardyMapper;
 
-public class DocumentSimilarityDriver {
+public class DocumentSimilarityDriver extends Configured implements Tool {
 
-  public static void main(String[] args) throws Exception {
+  @Override
+  public int run(String[] args) throws Exception {
     if (args.length < 3) {
-      System.err.println("Usage: <input> <stage2_out> <final_out> [extra_cache_files...]");
-      System.exit(2);
+      System.err.println("Usage: DocumentSimilarityDriver <input> <stage2_out> <final_out> [extra_cache_files...]");
+      return 2;
     }
-    Path input  = new Path(args[0]);
-    Path stage2 = new Path(args[1]); // output of Job 2, also input to Job 3
+
+    Configuration conf = getConf();
+    Path input    = new Path(args[0]); // dataset dir or file(s)
+    Path stage2   = new Path(args[1]); // output of Job 2 (also input to Job 3)
     Path finalOut = new Path(args[2]);
 
-    Configuration conf = new Configuration();
     FileSystem fs = FileSystem.get(conf);
 
     // Temp for stage 1
     String runId = UUID.randomUUID().toString().replace("-", "");
     Path stage1 = new Path("/tmp/Jacardy_stage1_" + runId);
 
-    // Clean any pre-existing outputs
+    // Clean any pre-existing outputs (okay if they don't exist)
     for (Path p : new Path[]{stage1, stage2, finalOut}) {
       if (fs.exists(p)) fs.delete(p, true);
     }
 
-    // ---------- Job 1: term -> [docs]  => DOCSIZE / DOCPAIR
+    // ---------------- Job 1: term -> [docs]  => emits inputs for size/pairs
     Job j1 = Job.getInstance(conf, "DocumentSimilarity-Stage1");
     j1.setJarByClass(DocumentSimilarityDriver.class);
     j1.setMapperClass(UniqueTermsMapper.class);
@@ -51,9 +59,9 @@ public class DocumentSimilarityDriver {
     j1.setOutputValueClass(Text.class);
     FileInputFormat.addInputPath(j1, input);
     FileOutputFormat.setOutputPath(j1, stage1);
-    if (!j1.waitForCompletion(true)) System.exit(1);
+    if (!j1.waitForCompletion(true)) return 1;
 
-    // ---------- Job 2: aggregate => SIZEOFDOC/SZ and INTERSECTION/IN
+    // ---------------- Job 2: aggregate => SIZEOFDOC/SZ and INTERSECTION/IN
     Job j2 = Job.getInstance(conf, "DocumentSimilarity-Stage2");
     j2.setJarByClass(DocumentSimilarityDriver.class);
     j2.setMapperClass(DocSizePairMapper.class);
@@ -64,9 +72,9 @@ public class DocumentSimilarityDriver {
     j2.setOutputValueClass(Text.class);
     FileInputFormat.addInputPath(j2, stage1);
     FileOutputFormat.setOutputPath(j2, stage2);
-    if (!j2.waitForCompletion(true)) System.exit(1);
+    if (!j2.waitForCompletion(true)) return 1;
 
-    // ---------- Job 3: mapper-only Jacardy
+    // ---------------- Job 3: mapper-only Jaccard computation
     Job j3 = Job.getInstance(conf, "DocumentSimilarity-Stage3");
     j3.setJarByClass(DocumentSimilarityDriver.class);
     j3.setMapperClass(ComputeJacardyMapper.class);
@@ -76,19 +84,30 @@ public class DocumentSimilarityDriver {
     j3.setOutputKeyClass(Text.class);
     j3.setOutputValueClass(Text.class);
 
-    // Input can be the whole stage2 directory; mapper filters to INTERSECTION/IN lines
+    // Input is the whole stage2 directory; mapper filters to INTERSECTION/IN lines
     FileInputFormat.addInputPath(j3, stage2);
     FileOutputFormat.setOutputPath(j3, finalOut);
 
-    // Add ALL stage2 part files as cache files so setup() can load SIZEOFDOC/SZ lines
-    for (FileStatus st : fs.listStatus(stage2, p -> p.getName().startsWith("part-"))) {
+    // Add ALL stage2 part files as cache files so mapper can load SIZEOFDOC/SZ lines
+    PathFilter partFilter = new PathFilter() {
+      @Override public boolean accept(Path p) {
+        String name = p.getName();
+        return name.startsWith("part-");
+      }
+    };
+    for (FileStatus st : fs.listStatus(stage2, partFilter)) {
       j3.addCacheFile(new URI(st.getPath().toString()));
     }
-    // Also allow extra cache files from CLI if you want
+    // Also allow extra cache files from CLI if provided
     for (int i = 3; i < args.length; i++) {
       j3.addCacheFile(new URI(args[i]));
     }
 
-    System.exit(j3.waitForCompletion(true) ? 0 : 1);
+    return j3.waitForCompletion(true) ? 0 : 1;
+  }
+
+  public static void main(String[] args) throws Exception {
+    int exit = ToolRunner.run(new Configuration(), new DocumentSimilarityDriver(), args);
+    System.exit(exit);
   }
 }
