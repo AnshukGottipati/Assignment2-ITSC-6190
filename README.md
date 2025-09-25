@@ -18,9 +18,8 @@ I started out trying to learn how to use Hadoop, and ended up making my mappers 
     2. DocSizePairReducer: (SIZEOFDOC, document# + \t+ count) or (INTERSECTION, A and B count) here, we attempt to get the numerical value forthe  unique size of the document and also the count of the INTERSECTION pairs, which when you count them up you get |A and B|
 
 ### Overall Data Flow
-[Describe how data flows from the initial input files, through the Mapper, shuffle/sort phase, and the Reducer to produce the final output.]
-Data Flot:
-INPUT FILES -> UniqueTermsMapper ->  UniqueTermsReducer -> DocSizePairMapper -> DocSizePairReducer -> setup() -> ComputeJacardyMapper() -> j3.setNumReduceTasks(0);
+#### Data Flow:
+#### INPUT FILES -> UniqueTermsMapper ->  UniqueTermsReducer -> DocSizePairMapper -> DocSizePairReducer -> setup() -> ComputeJacardyMapper()
 ---
 
 ## Setup and Execution
