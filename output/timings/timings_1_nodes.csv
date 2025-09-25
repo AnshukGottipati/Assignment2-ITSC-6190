@@ -1,0 +1,4 @@
+dataset,wall_seconds,stage2_dir,final_dir,exit_code
+dataset_1_1000_words.txt,67,/output/ds_stage2_dataset_1_1000_words_txt,/output/ds_similarity_dataset_1_1000_words_txt,0
+dataset_2_3000_words.txt,62,/output/ds_stage2_dataset_2_3000_words_txt,/output/ds_similarity_dataset_2_3000_words_txt,0
+dataset_3_5000_words.txt,66,/output/ds_stage2_dataset_3_5000_words_txt,/output/ds_similarity_dataset_3_5000_words_txt,0
