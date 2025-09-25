@@ -1,20 +1,26 @@
 # Assignment 2: Document Similarity using MapReduce
 
-**Name:** 
+**Name: Anshuk Gottipati** 
 
-**Student ID:** 
+**Student ID: 801238561** 
 
 ## Approach and Implementation
-
+I started out trying to learn how to use Hadoop, and ended up making my mappers and reducers easy to understand for myself. Essentially, this MapReduce assignment focuses mainly on three jobs, each with a mapper and a reducer, and the last one with just a mapper.
 ### Mapper Design
-[Explain the logic of your Mapper class. What is its input key-value pair? What does it emit as its output key-value pair? How does it help in solving the overall problem?]
+- I had 3 Mapper's in my final solution
+    1. UniqueTermsMapper: (word,document#), process a line and get all unique words belonging to the document and ignore repetitions by use of hashset
+    2. DocSizePairMapper: (DOCSIZE or DOCPAIR,document Name or docA,docB)
+    3. ComputeJacardyMapper:(A + ", " + B,"Similarity": jacardy). Here we simply compute the Jaccard similarity by using probabilistic equation to do (||A| + |B| - |intersection|)/|intersection|
 
 ### Reducer Design
-[Explain the logic of your Reducer class. What is its input key-value pair? How does it process the values for a given key? What does it emit as the final output? How do you calculate the Jaccard Similarity here?]
+- I had 2 Reducers in my final solution.
+    1. UniqueTermsReducer: (DOCSIZE,docuemnt#) and (DOCPAIR,document pair), The first is used in the process of trying to calculate the |A| essentially and the second is used for listing all pairs of documents
+    2. DocSizePairReducer: (SIZEOFDOC, document# + \t+ count) or (INTERSECTION, A and B count) here, we attempt to get the numerical value forthe  unique size of the document and also the count of the INTERSECTION pairs, which when you count them up you get |A and B|
 
 ### Overall Data Flow
 [Describe how data flows from the initial input files, through the Mapper, shuffle/sort phase, and the Reducer to produce the final output.]
-
+Data Flot:
+INPUT FILES -> UniqueTermsMapper ->  UniqueTermsReducer -> DocSizePairMapper -> DocSizePairReducer -> setup() -> ComputeJacardyMapper() -> j3.setNumReduceTasks(0);
 ---
 
 ## Setup and Execution
@@ -29,31 +35,23 @@ Run the following command to start the Hadoop cluster:
 docker compose up -d
 ```
 
-### 2. **Build the Code**
+### 2. **Build the Code and Copy JAR to Docker Container using bash script**
 
 Build the code using Maven:
 
 ```bash
-mvn clean package
+sh script1.sh
 ```
 
-### 4. **Copy JAR to Docker Container**
-
-Copy the JAR file to the Hadoop ResourceManager container:
-
-```bash
-docker cp target/WordCountUsingHadoop-0.0.1-SNAPSHOT.jar resourcemanager:/opt/hadoop-3.2.1/share/hadoop/mapreduce/
-```
-
-### 5. **Move Dataset to Docker Container**
+### 3. **Move Dataset to Docker Container**
 
 Copy the dataset to the Hadoop ResourceManager container:
 
 ```bash
-docker cp shared-folder/input/data/input.txt resourcemanager:/opt/hadoop-3.2.1/share/hadoop/mapreduce/
+docker cp ./dataset resourcemanager:/opt/hadoop-3.2.1/share/hadoop/mapreduce/
 ```
 
-### 6. **Connect to Docker Container**
+### 4. **Connect to Docker Container**
 
 Access the Hadoop ResourceManager container:
 
@@ -67,43 +65,39 @@ Navigate to the Hadoop directory:
 cd /opt/hadoop-3.2.1/share/hadoop/mapreduce/
 ```
 
-### 7. **Set Up HDFS**
+### 5. **Set Up HDFS**
 
 Create a folder in HDFS for the input dataset:
 
 ```bash
-hadoop fs -mkdir -p /input/data
+hdfs dfs -mkdir -p /input/dataset
 ```
 
 Copy the input dataset to the HDFS folder:
 
 ```bash
-hadoop fs -put ./input.txt /input/data
+hdfs dfs -put -f ./dataset/dataset_1_1000_words.txt /input/dataset/
+hdfs dfs -put -f ./dataset/dataset_2_3000_words.txt /input/dataset/
+hdfs dfs -put -f ./dataset/dataset_3_5000_words.txt /input/dataset/
 ```
 
-### 8. **Execute the MapReduce Job**
+### 6. **Execute the MapReduce Job**
 
-Run your MapReduce job using the following command: Here I got an error saying output already exists so I changed it to output1 instead as destination folder
+Run your MapReduce job using the following commands:
 
 ```bash
-hadoop jar /opt/hadoop-3.2.1/share/hadoop/mapreduce/WordCountUsingHadoop-0.0.1-SNAPSHOT.jar com.example.controller.Controller /input/data/input.txt /output1
+chmod 777 script2.sh
+./script2.sh
 ```
 
-### 9. **View the Output**
 
-To view the output of your MapReduce job, use:
-
-```bash
-hadoop fs -cat /output1/*
-```
-
-### 10. **Copy Output from HDFS to Local OS**
+### 7. **To view output, Copy Output from HDFS to Local OS**
 
 To copy the output from HDFS to your local machine:
 
 1. Use the following command to copy from HDFS:
     ```bash
-    hdfs dfs -get /output1 /opt/hadoop-3.2.1/share/hadoop/mapreduce/
+    hdfs dfs -get /output /opt/hadoop-3.2.1/share/hadoop/mapreduce/
     ```
 
 2. use Docker to copy from the container to your local machine:
@@ -111,7 +105,7 @@ To copy the output from HDFS to your local machine:
    exit 
    ```
     ```bash
-    docker cp resourcemanager:/opt/hadoop-3.2.1/share/hadoop/mapreduce/output1/ shared-folder/output/
+    docker cp resourcemanager:/opt/hadoop-3.2.1/share/hadoop/mapreduce/output/ ./datasets/
     ```
 3. Commit and push to your repo so that we can able to see your output
 
@@ -121,7 +115,11 @@ To copy the output from HDFS to your local machine:
 ## Challenges and Solutions
 
 [Describe any challenges you faced during this assignment. This could be related to the algorithm design (e.g., how to generate pairs), implementation details (e.g., data structures, debugging in Hadoop), or environmental issues. Explain how you overcame these challenges.]
-
+1. Had issues with bulding the jar
+    - Solved it by changing the location of all my java files into the path maven specifies
+2. Codespaces kept crashing every 20 mins
+3. Had a hard time with path reading from my mapper or my driver.
+    - had to debug using llm, changed from FileReader to Hadoop's FileSystem.
 ---
 ## Sample Input
 
@@ -140,3 +138,25 @@ Document3 Sample text with different words
 "Document2, Document3 Similarity: 0.50"
 ```
 ## Obtained Output: (Place your obtained output here.)
+
+1. Output Folder contains the data from the Map Reduce specifically in the file labeled: part-m-00000
+
+#### Report your observations on the diLerence in execution times between 3 data nodes and 1 data node in the README file.
+
+1. 3 Data nodes(wall_seconds column == time taken)
+
+| dataset                  | wall_seconds | stage2_dir                                   | final_dir                                             | exit_code |
+|---------------------------|--------------|----------------------------------------------|-------------------------------------------------------|-----------|
+| dataset_1_1000_words.txt | 45           | /output/ds_stage2_dataset_1_1000_words_txt   | /output/ds_similarity_dataset_1_1000_words_txt        | 0         |
+| dataset_2_3000_words.txt | 44           | /output/ds_stage2_dataset_2_3000_words_txt   | /output/ds_similarity_dataset_2_3000_words_txt        | 0         |
+| dataset_3_5000_words.txt | 46           | /output/ds_stage2_dataset_3_5000_words_txt   | /output/ds_similarity_dataset_3_5000_words_txt        | 0         |
+
+2. 1 Data Node(wall_seconds column == time taken)
+
+| dataset                  | wall_seconds | stage2_dir                                   | final_dir                                             | exit_code |
+|---------------------------|--------------|----------------------------------------------|-------------------------------------------------------|-----------|
+| dataset_1_1000_words.txt | 67           | /output/ds_stage2_dataset_1_1000_words_txt   | /output/ds_similarity_dataset_1_1000_words_txt        | 0         |
+| dataset_2_3000_words.txt | 62           | /output/ds_stage2_dataset_2_3000_words_txt   | /output/ds_similarity_dataset_2_3000_words_txt        | 0         |
+| dataset_3_5000_words.txt | 66           | /output/ds_stage2_dataset_3_5000_words_txt   | /output/ds_similarity_dataset_3_5000_words_txt        | 0         |
+
+3. It seems that with the reduction in data nodes from 3 to 1, the time taken increased by a factor of 1/3.
